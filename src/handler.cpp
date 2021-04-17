@@ -1,22 +1,43 @@
 #include <time.h>
 #include "main.h"
 
-char bgArray[20][10] = { 0 }; // 背景
-char randomBlock[2][4] = { 0 };
-int blockType = 0; // 记录方块类型
+char bgArray[20][10] = { 0 }; // 背景方块组
+int nowBlockType = 0; // 记录当前方块类型
+int nextBlockType = 0; // 记录下一个方块类型
 Position bp= { 0,0 }; // 记录方块位置
-bool isStart = false; // 是否开始游戏
+bool isStart = false; // 是否开始游戏的标志
+bool isStop = true; // 是否暂停游戏的标志
 int score = 0; // 分数
+int level = LEVEL_EASY; // 游戏难度
+// 随机方块的种类
+char blockArray[7][2][4] = {
+	{1,1,0,0,0,1,1,0},
+	{0,1,1,0,1,1,0,0},
+	{1,0,0,0,1,1,1,0},
+	{0,0,1,0,1,1,1,0},
+	{0,1,0,0,1,1,1,0},
+	{1,1,0,0,1,1,0,0},
+	{1,1,1,1,0,0,0,0}
+};
 
 void Init(HWND hWnd)
 {
 	// 产生随机种子
 	srand(unsigned int(time(NULL)));
-	// 创建随机方块
-	CreateRandomBlock();
-	// 创建重玩按钮
-	CreateWindowA("BUTTON", "重玩", WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON,
-		0, 600, 400, 30, hWnd, (HMENU)RETRY_BUTTON, NULL, NULL);
+	// 创建初始的随机方块
+	CreateNextBlock();
+	// 创建重玩和暂停按钮
+	CreateWindowA("BUTTON", "重玩(Space)", WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON,
+		0, 600, 210, 30, hWnd, (HMENU)RETRY_BUTTON, NULL, NULL);
+	CreateWindowA("BUTTON", "开始/暂停(enter)", WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON,
+		210, 600, 210, 30, hWnd, (HMENU)STOP_BUTTON, NULL, NULL);
+	// 创建三个难度按钮
+	CreateWindowA("BUTTON", "简单", WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON,
+		0, 630, 140, 30, hWnd, (HMENU)LEVEL_EASY, NULL, NULL);
+	CreateWindowA("BUTTON", "中等", WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON,
+		140, 630, 140, 30, hWnd, (HMENU)LEVEL_MEDIUM, NULL, NULL);
+	CreateWindowA("BUTTON", "困难", WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON,
+		280, 630, 140, 30, hWnd, (HMENU)LEVEL_HARD, NULL, NULL);
 }
 
 void RetryGame(HWND hWnd)
@@ -25,17 +46,16 @@ void RetryGame(HWND hWnd)
 	HDC hDc;
 	// 清除定时器
 	KillTimer(hWnd, TIMER01);
-	// 使主窗口重新获得焦点
-	SetFocus(hWnd);
 	// 清空背景
 	for (i = 0; i < 20; ++i)
 		for (j = 0; j < 10; ++j)
 			bgArray[i][j] = 0;
 	// 创建随机方块
-	CreateRandomBlock();
+	CreateNextBlock();
 	// 分数清零
 	score = 0;
-	// 关闭开始游戏标志
+	// 处理标志
+	isStop = true;
 	isStart = false;
 	// 重绘界面
 	hDc = GetDC(hWnd);
@@ -43,20 +63,40 @@ void RetryGame(HWND hWnd)
 	ReleaseDC(hWnd, hDc);
 }
 
+void ChooseLevel(HWND hWnd, WPARAM wParam)
+{
+	level = wParam;
+	RetryGame(hWnd);
+}
+
 void UpdateFrame(HDC hDc) {
 	HDC hMemDc;
 	HBITMAP hMemBitMap;
 	hMemDc = CreateCompatibleDC(hDc); // 创建虚拟DC
-	hMemBitMap = CreateCompatibleBitmap(hDc, 400, 600); // 创建画布
+	hMemBitMap = CreateCompatibleBitmap(hDc, 420, 600); // 创建画布
 	SelectObject(hMemDc, hMemBitMap); // 关联画布和虚拟DC
 	// 在虚拟DC上画内容
 	Rectangle(hMemDc, 0, 0, 300, 600); // 画背景
+	ShowDetail(hMemDc); // 显示分数
+	PreviewNextBlock(hMemDc); // 预览下一个方块
 	PaintBgArray(hMemDc); // 画矩形
-	ShowScore(hMemDc); // 显示分数
 	// 将虚拟DC上的内容复制到实际DC上
-	BitBlt(hDc, 0, 0, 400, 600, hMemDc, 0, 0, SRCCOPY);
+	BitBlt(hDc, 0, 0, 420, 600, hMemDc, 0, 0, SRCCOPY);
 	DeleteObject(hMemBitMap); // 释放画布
 	DeleteDC(hMemDc); // 释放虚拟DC
+}
+
+void PreviewNextBlock(HDC hDc)
+{
+	int i, j;
+	HBRUSH newBrush = CreateSolidBrush(RGB(255, 255, 0)); // 创建画刷
+	HBRUSH oldBrush = (HBRUSH)SelectObject(hDc, newBrush); // 连接新画刷，返回旧画刷
+	for (i = 0; i < 2; ++i)
+		for (j = 0; j < 4; ++j)
+			if (1 == blockArray[nextBlockType][i][j])
+				Rectangle(hDc, 310 + j * 25, 100 + i * 25, 335 + j * 25, 125 + i * 25);
+	newBrush = (HBRUSH)SelectObject(hDc, oldBrush);
+	DeleteObject(newBrush);
 }
 
 void PaintBgArray(HDC hDc) {
@@ -66,7 +106,7 @@ void PaintBgArray(HDC hDc) {
 	HBRUSH oldBrush = (HBRUSH)SelectObject(hDc, newBrush); // 连接新画刷，返回旧画刷
 	for (i = 0; i < 20; ++i)
 		for (j = 0; j < 10; ++j)
-			if (1== bgArray[i][j])	
+			if (1== bgArray[i][j])
 				Rectangle(hDc, j * 30, i * 30, (j + 1) * 30, (i + 1) * 30);
 	newBrush = (HBRUSH)SelectObject(hDc, oldBrush); // 换回旧画刷
 	DeleteObject(newBrush); // 删除新画刷
@@ -82,29 +122,21 @@ void PaintBgArray(HDC hDc) {
 	DeleteObject(newBrush);
 }
 
-void CreateRandomBlock()
+void CreateNextBlock()
+{
+	nextBlockType = rand() % 7;
+}
+
+void AddNextBlock()
 {
 	int i, j;
-	blockType = rand() % 7;
-	bp.line = 0;
-	bp.column = 3;
-	if (6 == blockType) bp.column = 4;
-
-	char randomBlockArray[7][8] = {
-		{1,1,0,0,0,1,1,0},
-		{0,1,1,0,1,1,0,0},
-		{1,0,0,0,1,1,1,0},
-		{0,0,1,0,1,1,1,0},
-		{0,1,0,0,1,1,1,0},
-		{1,1,0,0,1,1,0,0},
-		{1,1,1,1,0,0,0,0}
-	};
-	for (i = 0; i < 8; ++i)
-		randomBlock[i/4][i%4] = randomBlockArray[blockType][i];
-
+	nowBlockType = nextBlockType;
 	for (i = 0; i < 2; ++i)
 		for (j = 0; j < 4; ++j)
-			bgArray[i][j + 3] = randomBlock[i][j];
+			bgArray[i][j + 3] = blockArray[nowBlockType][i][j];
+	bp.line = 0;
+	bp.column = 3;
+	if (6 == nowBlockType) bp.column = 4;
 }
 
 int BlockDown()
@@ -148,11 +180,10 @@ int Change1to2()
 
 void OnTimer(HWND hWnd)
 {
-	HDC hDc = GetDC(hWnd); // 获取hWnd对应的窗口句柄hDc
 	// 方块下落
 	if (1 == BlockDown())
 	{
-		// 如果到底了，则消除成行的方块，同时创建一个新的随机方块
+		// 如果到底了，则消除成行的方块
 		EraseBlocks();
 		// 判断游戏是否结束
 		if (1 == GameOver())
@@ -161,8 +192,15 @@ void OnTimer(HWND hWnd)
 			KillTimer(hWnd, TIMER01);
 			return;
 		}
-		CreateRandomBlock();
+
+		// 加入新的方块到游戏中
+		AddNextBlock();
+		// 产生下一个方块
+		CreateNextBlock();
 	}
+
+	// 重绘界面
+	HDC hDc = GetDC(hWnd); // 获取hWnd对应的窗口句柄hDc
 	UpdateFrame(hDc); // 重绘句柄hDc对应区域
 	ReleaseDC(hWnd, hDc); // 释放窗口句柄
 }
@@ -177,6 +215,7 @@ void EraseBlocks()
 {
 	int i, j, k;
 	int sum = 0;
+	int temp = nextBlockType; // 保存值，防止被改变
 
 	for (i = 19; i >= 0; --i)
 	{
@@ -184,23 +223,36 @@ void EraseBlocks()
 			sum += bgArray[i][j];
 		if (20 == sum)
 		{
-			for (k = i - 1; i >= 0; --i)
+			for (k = i - 1; k >= 0; --k)
 				for (j = 0; j < 10; ++j)
-					bgArray[i + 1][j] = bgArray[i][j];
+					bgArray[k + 1][j] = bgArray[k][j];
 			i = 20;
 			++score;
 		}
 		sum = 0;
 	}
+	nextBlockType = temp; // 恢复值
 }
 
-void ShowScore(HDC hDc)
+void ShowDetail(HDC hDc)
 {
-	char strScore[10] = { 0 }; // 容器
-	_itoa_s(score, strScore, 10); // int转换成字符串：目标整数、字符容器、进制
-	Rectangle(hDc, 300, 0 , 400, 600); // 分数背景
-	TextOut(hDc, 325, 50, strScore, strlen(strScore)); // 显示分数
-	TextOut(hDc, 325, 30, "分数", strlen("分数")); // 显示"分数"
+	// 容器
+	char strScore[10] = { 0 };
+	LPCSTR strLevel = "简单";
+
+	// int转换成字符串：目标整数、字符容器、进制
+	_itoa_s(score, strScore, 10);
+
+	// 画详情背景
+	Rectangle(hDc, 300, 0 , 420, 600);
+	
+	if (LEVEL_MEDIUM == level) strLevel = "中等";
+	if (LEVEL_HARD == level) strLevel = "困难";
+
+	TextOut(hDc, 315, 20, "难度：", strlen("难度：")); // 显示"难度"
+	TextOut(hDc, 355, 20, strLevel, strlen(strLevel)); // 显示难度
+	TextOut(hDc, 315, 40, "分数：", strlen("分数：")); // 显示"分数"
+	TextOut(hDc, 355, 40, strScore, strlen(strScore)); // 显示分数
 }
 
 int GameOver()
@@ -219,9 +271,29 @@ KEY::KEY(HWND hWnd) {
 	this->hWnd = hWnd;
 }
 
-void KEY::enter() {
-	// 开启定时器
-	SetTimer(this->hWnd, TIMER01, 500, NULL);
+void KEY::enter() { // 游戏开始键
+	int gameSpeed = 0;
+	if (LEVEL_EASY == level) gameSpeed = 500;
+	if (LEVEL_MEDIUM == level) gameSpeed = 250;
+	if (LEVEL_HARD == level) gameSpeed = 100;
+
+	if (!isStart)
+	{
+		isStart = true;
+		// 游戏开始，掉落初始创建的随机方块
+		AddNextBlock();
+		// 创建下一个随机方块
+		CreateNextBlock();
+	}
+	if (isStop) {
+		isStop = false;
+		SetTimer(this->hWnd, TIMER01, gameSpeed, NULL);
+	}
+	else
+	{
+		isStop = true;
+		KillTimer(this->hWnd, TIMER01);
+	}
 }
 
 void KEY::left()
@@ -292,7 +364,7 @@ void KEY::up()
 {
 	HDC hDc = GetDC(this->hWnd); // 获取hWnd对应的窗口句柄hDc
 
-	switch (blockType)
+	switch (nowBlockType)
 	{
 	case 0:
 	case 1:
@@ -415,6 +487,12 @@ int Chage5Shapes()
 	return 0;
 }
 
+void KEY::space()
+{
+	// 重开游戏
+	RetryGame(this->hWnd);
+}
+
 void KEY::down()
 {
 	// 按向下键效果同计时器的回调函数
@@ -425,22 +503,22 @@ void KEY::run(WPARAM keyCode) {
 	switch (keyCode)
 	{
 	case VK_RETURN:
-		isStart = true;
 		this->enter();
 		break;
 	case VK_LEFT:
-		this->left();
+		if (isStart && !isStop) this->left();
 		break;
 	case VK_RIGHT:
-		this->right();
+		if (isStart && !isStop) this->right();
 		break;
 	case VK_UP:
-		if(isStart) 
-			this->up();
+		if (isStart && !isStop) this->up();
 		break;
 	case VK_DOWN:
-		if (isStart)
-			this->down();
+		if (isStart && !isStop) this->down();
+		break;
+	case VK_SPACE:
+		if (isStart) this->space();
 		break;
 	}
 }

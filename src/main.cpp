@@ -20,14 +20,14 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPreInstance, LPSTR lpCmdLine,
 	MSG msg;
 	int errorCode;
 
-	wc.cbClsExtra = 0; // TODO
+	wc.cbClsExtra = 0; // TODOs
 	wc.cbSize = sizeof(WNDCLASSEX); // 窗口内存大小
 	wc.cbWndExtra = 0; // TODO
 	wc.hbrBackground = (HBRUSH)COLOR_WINDOW; // 窗口颜色，须转化为HBRUSH类型
-	wc.hCursor = LoadCursor(hInstance, MAKEINTRESOURCE(IDC_CURSOR1)); // 光标
+	wc.hCursor = LoadCursor(hInstance, MAKEINTRESOURCE(IDC_NOCURSOR)); // 光标
 	// LoadCursor(NULL, IDC_ARROW)：加载系统光标
 	// LoadCursor(hInstance, MAKEINTRESOURCE(IDC_EXAMPLE))：加载自定义光标，IDC_EXAMPLE为头文件中设置的资源ID
-	wc.hIcon = LoadIcon(NULL, IDI_APPLICATION); // 底栏图标
+	wc.hIcon = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_BLOCKICON)); // 底栏图标
 	// LoadIcon(NULL, IDI_APPLICATION)：加载系统图标
 	// LoadIcon(hInstance, MAKEINTRESOURCE(IDI_EXAMPLE))：加载自定义图标
 	wc.hIconSm = NULL; // 左上角图标
@@ -52,8 +52,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPreInstance, LPSTR lpCmdLine,
 		"ELS", // 窗口类名
 		"Tetris", // 窗口显示名
 		WS_OVERLAPPEDWINDOW, // 窗口风格
-		100, 100, // 窗口初始位置
-		400, 668, // 窗口初始宽高
+		500, 50, // 窗口初始位置
+		435, 698, // 窗口初始宽高
 		NULL, // 父窗口句柄
 		NULL, // 菜单窗口句柄
 		hInstance, // 当前程序句柄
@@ -106,6 +106,11 @@ LRESULT CALLBACK MsgProc(HWND hWnd, UINT nMsg, WPARAM wParam, LPARAM lParam)
 	case WM_COMMAND: // 接收按钮信息
 		if (RETRY_BUTTON == wParam)
 			RetryGame(hWnd);
+		else if (STOP_BUTTON == wParam)
+			Key.run(VK_RETURN);
+		else
+			ChooseLevel(hWnd, wParam);
+		SetFocus(hWnd); // 使主窗口重新获得焦点
 		break;
 
 	case WM_DESTROY: // 该消息在点击×时产生，用于让程序退出
@@ -152,4 +157,9 @@ LRESULT CALLBACK MsgProc(HWND hWnd, UINT nMsg, WPARAM wParam, LPARAM lParam)
 	DeleteObject(hMemBitMap)：清除画布
 	DeleteDC(hMemDc)：清除虚拟窗口的句柄
  8. GetMessage函数的参数2如果是hWnd，则只会响应hWnd指定窗口的消息，如果焦点被主程序捕获，则会使该窗口处于无法响应的状态
-*/
+ 9. 自动改值的问题记录：
+	 ① 奇怪：记录下一个随机方块数组nextBlockArray的数值都自动变成了2。
+	 ② 奇怪：全局变量nextBlockType的值被自动改变了。
+	理解：猜测与内存有关。
+	解决：在被改变的地方，用临时变量先记录起来，然后恢复成正确的值。
+ */

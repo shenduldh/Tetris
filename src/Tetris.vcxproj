@@ -154,7 +154,10 @@
     <ResourceCompile Include="Tetris.rc" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="cursor1.cur" />
+    <None Include="no_cursor.cur" />
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="block_icon.ico" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
